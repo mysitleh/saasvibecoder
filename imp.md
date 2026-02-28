@@ -370,6 +370,8 @@ Payment Processing Fee
 Subscription Vibecoder
 +
 Enterprise Client Plan
++
+AI Code Revision Services (Add-on)
 
 ---
 
@@ -416,6 +418,27 @@ Matching engine menggunakan score ini.
 - Auto release via deployment check
 - DAO-style arbitration
 - Cross-border payout
+
+---
+
+# 16. New Service: AI Code Revision (Add-on)
+
+Layanan khusus untuk client yang sudah memiliki website hasil generate AI tetapi membutuhkan perbaikan kualitas.
+
+**Target Market:**
+- Pemilik website hasil generator AI (ChatGPT, Claude, V0, dll)
+- User yang memiliki UI/UX kaku atau tidak responsif
+- Codebase yang sulit dikembangkan lebih lanjut
+
+**Value Proposition:**
+- Human-Touch UI/UX Refinement
+- Code Cleanup & Architecture Fix
+- Mobile Responsiveness Optimization
+- Professional Design Polish
+
+**Monetization:**
+- Paid Service (Per-task atau Paket Revisi)
+- Add-on service fees untuk Vibecoder
 
 ---
 
