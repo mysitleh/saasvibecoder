@@ -1,0 +1,286 @@
+// This is your Prisma schema file
+// SQLite compatible - using String instead of enums
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// AUTH MODELS (NextAuth)
+// ============================================
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// ============================================
+// USER MODEL
+// role: CLIENT | VIBECODER | ADMIN
+// ============================================
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+  password      String?
+  role          String    @default("CLIENT")
+  bio           String?
+  skills        String?
+  hourlyRate    Float?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  trustScore    Float @default(100.0)
+  deliverySpeed Float @default(100.0)
+  disputeRate   Float @default(0.0)
+  successRatio  Float @default(100.0)
+  approvalDelay Float @default(0.0)
+  disputeAbuse  Float @default(0.0)
+
+  accounts            Account[]
+  sessions            Session[]
+  clientProjects      Project[]     @relation("ClientProjects")
+  vibecoderProjects   Project[]     @relation("VibecoderProjects")
+  wallet              Wallet?
+  disputesAsClient    Dispute[]     @relation("ClientDisputes")
+  disputesAsVibecoder Dispute[]     @relation("VibecoderDisputes")
+  notifications       Notification[]
+}
+
+// ============================================
+// PROJECT MODEL
+// status: PROJECT_CREATED | ESCROW_FUNDED | IN_PROGRESS | SUBMITTED | UNDER_REVIEW | REVISION_REQUESTED | DISPUTED | PAYMENT_RELEASED | COMPLETED | CANCELLED | REFUNDED
+// category: WEB_APP | MOBILE_APP | API_BACKEND | UI_UX_DESIGN | AI_INTEGRATION | ECOMMERCE | LANDING_PAGE | DASHBOARD | OTHER
+// ============================================
+
+model Project {
+  id            String    @id @default(cuid())
+  title         String
+  description   String
+  category      String    @default("OTHER")
+  status        String    @default("PROJECT_CREATED")
+  totalAmount   Float
+  platformFee   Float     @default(0)
+  netAmount     Float     @default(0)
+  deadline      DateTime?
+  revisionLimit Int       @default(3)
+  revisionsUsed Int       @default(0)
+  techStack     String?
+  requirements  String?
+
+  clientId    String
+  client      User    @relation("ClientProjects", fields: [clientId], references: [id])
+  vibecoderId String?
+  vibecoder   User?   @relation("VibecoderProjects", fields: [vibecoderId], references: [id])
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  fundedAt    DateTime?
+  completedAt DateTime?
+
+  milestones         Milestone[]
+  escrowTransactions EscrowTransaction[]
+  deliverables       Deliverable[]
+  disputes           Dispute[]
+  reviews            Review[]
+}
+
+// ============================================
+// MILESTONE MODEL
+// status: PENDING | IN_PROGRESS | SUBMITTED | APPROVED | REVISION_REQUESTED | DISPUTED | RELEASED | CANCELLED
+// ============================================
+
+model Milestone {
+  id          String    @id @default(cuid())
+  projectId   String
+  project     Project   @relation(fields: [projectId], references: [id])
+  title       String
+  description String?
+  percentage  Float
+  amount      Float
+  status      String    @default("PENDING")
+  order       Int
+  deadline    DateTime?
+  submittedAt DateTime?
+  approvedAt  DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  escrowTransaction EscrowTransaction?
+  deliverables      Deliverable[]
+}
+
+// ============================================
+// ESCROW TRANSACTION MODEL
+// status: PENDING | FUNDED | LOCKED | RELEASED | REFUNDED | DISPUTED | CANCELLED
+// ============================================
+
+model EscrowTransaction {
+  id          String    @id @default(cuid())
+  projectId   String
+  project     Project   @relation(fields: [projectId], references: [id])
+  milestoneId String?   @unique
+  milestone   Milestone? @relation(fields: [milestoneId], references: [id])
+  amount      Float
+  platformFee Float     @default(0)
+  netAmount   Float     @default(0)
+  status      String    @default("PENDING")
+  lockedAt    DateTime?
+  releasedAt  DateTime?
+  refundedAt  DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  walletTransactions WalletTransaction[]
+}
+
+// ============================================
+// WALLET MODEL
+// ============================================
+
+model Wallet {
+  id             String   @id @default(cuid())
+  userId         String   @unique
+  user           User     @relation(fields: [userId], references: [id])
+  balance        Float    @default(0)
+  lockedBalance  Float    @default(0)
+  totalEarned    Float    @default(0)
+  totalWithdrawn Float    @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  transactions WalletTransaction[]
+}
+
+// ============================================
+// WALLET TRANSACTION MODEL
+// type: DEPOSIT | WITHDRAWAL | ESCROW_LOCK | ESCROW_RELEASE | ESCROW_REFUND | PLATFORM_FEE | COMMISSION
+// status: PENDING | COMPLETED | FAILED | CANCELLED
+// ============================================
+
+model WalletTransaction {
+  id                  String    @id @default(cuid())
+  walletId            String
+  wallet              Wallet    @relation(fields: [walletId], references: [id])
+  escrowTransactionId String?
+  escrowTransaction   EscrowTransaction? @relation(fields: [escrowTransactionId], references: [id])
+  type                String
+  amount              Float
+  status              String    @default("PENDING")
+  description         String?
+  reference           String?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+}
+
+// ============================================
+// DELIVERABLE MODEL
+// ============================================
+
+model Deliverable {
+  id             String    @id @default(cuid())
+  projectId      String
+  project        Project   @relation(fields: [projectId], references: [id])
+  milestoneId    String?
+  milestone      Milestone? @relation(fields: [milestoneId], references: [id])
+  repoLink       String?
+  demoUrl        String?
+  deploymentLink String?
+  documentation  String?
+  notes          String?
+  submittedAt    DateTime  @default(now())
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+}
+
+// ============================================
+// DISPUTE MODEL
+// status: OPEN | UNDER_REVIEW | RESOLVED_CLIENT | RESOLVED_VIBECODER | RESOLVED_SPLIT | CLOSED
+// reason: FAKE_DELIVERY | INCOMPLETE_WORK | QUALITY_ISSUE | DEADLINE_MISSED | SCOPE_CREEP | PAYMENT_ISSUE | OTHER
+// ============================================
+
+model Dispute {
+  id          String    @id @default(cuid())
+  projectId   String
+  project     Project   @relation(fields: [projectId], references: [id])
+  clientId    String
+  client      User      @relation("ClientDisputes", fields: [clientId], references: [id])
+  vibecoderId String
+  vibecoder   User      @relation("VibecoderDisputes", fields: [vibecoderId], references: [id])
+  reason      String
+  description String
+  status      String    @default("OPEN")
+  resolution  String?
+  adminNotes  String?
+  resolvedAt  DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+// ============================================
+// REVIEW MODEL
+// ============================================
+
+model Review {
+  id         String   @id @default(cuid())
+  projectId  String
+  project    Project  @relation(fields: [projectId], references: [id])
+  reviewerId String
+  rating     Int
+  comment    String?
+  createdAt  DateTime @default(now())
+}
+
+// ============================================
+// NOTIFICATION MODEL
+// type: PROJECT_CREATED | ESCROW_FUNDED | PROJECT_STARTED | MILESTONE_SUBMITTED | MILESTONE_APPROVED | REVISION_REQUESTED | DISPUTE_OPENED | DISPUTE_RESOLVED | PAYMENT_RELEASED | WITHDRAWAL_PROCESSED | SYSTEM_ALERT
+// ============================================
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  type      String
+  title     String
+  message   String
+  read      Boolean  @default(false)
+  link      String?
+  createdAt DateTime @default(now())
+}
